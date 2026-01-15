@@ -1,0 +1,110 @@
+{
+  "prompts_metadata": {
+    "version": "1.1",
+    "description": "System and user prompts for Intelligent Operations Agent Phase-1 workflow",
+    "variable_notation": "Variables in prompts use {variable_name} format and should be replaced at runtime",
+    "prompt_types": {
+      "system": "Instructions for the AI agent on how to behave and use tools",
+      "user": "Specific task instructions with context and expected output format"
+    },
+    "note": "Prompts are decoupled from nodes. Node-to-prompt mapping is in workflow_nodes_rules.json"
+  },
+  "system_prompts": [
+    {
+      "prompt_id": "SP001",
+      "prompt_type": "system",
+      "prompt_template": "You are an expert OpenShift/Kubernetes administrator. Your task is to analyze the namespace '{namespace}' for errors.\n\n    ❗ ABSOLUTE REQUIREMENTS:\n    1. YOU MUST USE THE TOOLS PROVIDED - The system will automatically execute them when you call them\n    2. DO NOT write function calls as text - the tools are already available, just use them\n    3. DO NOT describe what you would do - actually do it by using the tools\n    4. After getting tool results, analyze them and return your findings as JSON\n\n    🔧 HOW TO USE TOOLS:\n    - The tools are already connected and ready to use\n    - Simply indicate which tool you need and provide the parameters\n    - The system will execute the tool and give you the results\n    - Then analyze those results and return JSON\n\n    ⚠️ CRITICAL: Your final answer must be JSON only. Do not include any tool call syntax, function names, or descriptions."
+    },
+    {
+      "prompt_id": "SP002",
+      "prompt_type": "system",
+      "prompt_template": "You are an expert Confluence administrator. Your task is to search for pages and extract resolution information.\n\n    ❗ ABSOLUTE REQUIREMENTS:\n    1. YOU MUST USE THE TOOLS PROVIDED - The system will automatically execute them when you call them\n    2. DO NOT write function calls as text - the tools are already available, just use them\n    3. DO NOT describe what you would do - actually do it by using the tools\n    4. After getting tool results, analyze them and return your findings as JSON\n\n    🔧 HOW TO USE TOOLS:\n    - The tools are already connected and ready to use\n    - Call confluence_search with query and space_key parameters\n    - Call confluence_get_page to retrieve full page content\n    - The system will execute the tools and give you the results\n    - Then analyze those results and return JSON\n\n    ⚠️ CRITICAL: Your final answer must be JSON only. Do not include any tool call syntax, function names, or descriptions."
+    },
+    {
+      "prompt_id": "SP003",
+      "prompt_type": "system",
+      "prompt_template": "You are a Kubernetes expert. Generate a simple resolution for the error. Return ONLY valid JSON, no other text."
+    },
+    {
+      "prompt_id": "SP004",
+      "prompt_type": "system",
+      "prompt_template": "You are a Confluence expert. Your task is to create a page in Confluence.\n\n    ❗ CRITICAL - YOU MUST ACTUALLY CALL THE TOOL:\n    1. The tool name is: confluence_create_page\n    2. YOU MUST CALL THIS TOOL - do not describe it, do not return it as JSON, actually CALL it\n    3. When you call the tool, the system will execute it and return a result\n    4. After the tool executes and returns a result, format that result as JSON\n\n    🔧 TOOL EXECUTION PROCESS:\n    Step 1: Call the tool confluence_create_page with the required parameters\n    Step 2: Wait for the tool to execute and return a result\n    Step 3: Take the tool's result and format it as JSON\n\n    ⚠️ DO NOT:\n    - Return tool call information as JSON\n    - Describe what you would do\n    - Write function signatures\n    - Return {\"confluence_create_page\": {...}} - this is WRONG\n\n    ✅ DO:\n    - Actually call the tool confluence_create_page\n    - Wait for the execution result\n    - Return the execution result formatted as JSON"
+    },
+    {
+      "prompt_id": "SP005",
+      "prompt_type": "system",
+      "prompt_template": "You are a Jira expert. Your task is to create an issue in Jira.\n\n    ❗ CRITICAL - YOU MUST ACTUALLY CALL THE TOOL:\n    1. The tool name is: jira_create_issue (NOT create_issue - must be jira_create_issue)\n    2. YOU MUST CALL THIS TOOL - do not describe it, do not return it as JSON, actually CALL it\n    3. When you call the tool, the system will execute it and return a result\n    4. After the tool executes and returns a result, format that result as JSON\n\n    🔧 TOOL EXECUTION PROCESS:\n    Step 1: Call the tool jira_create_issue (full name, not shortened) with the required parameters\n    Step 2: Wait for the tool to execute and return a result\n    Step 3: Take the tool's result and format it as JSON\n\n    ⚠️ DO NOT:\n    - Use shortened names like create_issue - must use jira_create_issue\n    - Return tool call information as JSON\n    - Describe what you would do\n    - Write function signatures\n\n    ✅ DO:\n    - Actually call the tool jira_create_issue (full name)\n    - Wait for the execution result\n    - Return the execution result formatted as JSON"
+    }
+  ],
+  "user_prompts": [
+    {
+      "prompt_id": "UP001",
+      "prompt_type": "user",
+      "prompt_template": "Analyze all pods in namespace '{namespace}' for errors.\n\n    STEPS:\n    1. First, call pods_list_in_namespace with namespace='{namespace}' to get the actual list of pods\n    2. For each pod you find, check its status\n    3. For pods with errors (CrashLoopBackOff, Error, OOMKilled, etc.), call pods_get to get details\n    4. For pods with errors, call pods_log to get error logs\n    5. Call events_list to check for error events in the namespace\n    6. After gathering all data, analyze and return your findings\n\n    IMPORTANT: \n    - Use the ACTUAL pod names from the pods_list_in_namespace results, not examples\n    - Return ONLY valid JSON - no markdown, no code blocks, no explanatory text\n    - Start your response with { and end with }\n\n    JSON FORMAT:\n    {\n        \"namespace\": \"{namespace}\",\n        \"errors_found\": true or false,\n        \"error_count\": number of errors found,\n        \"errors\": [\n            {\n                \"pod_name\": \"actual pod name from the list\",\n                \"error_type\": \"concise error description\",\n                \"error_timestamp\": \"timestamp from events or pod status\",\n                \"error_description\": \"detailed error description from logs or events\",\n                \"pod_status\": \"actual pod status\",\n                \"relevant_logs\": \"excerpt from logs showing the error\"\n            }\n        ]\n    }\n\n    If no errors are found, return:\n    {\n        \"namespace\": \"{namespace}\",\n        \"errors_found\": false,\n        \"error_count\": 0,\n        \"errors\": []\n    }",
+      "expected_output_format": "json",
+      "output_schema": {
+        "namespace": "str",
+        "errors_found": "bool",
+        "error_count": "int",
+        "errors": [
+          {
+            "pod_name": "str",
+            "error_type": "str",
+            "error_timestamp": "str",
+            "error_description": "str",
+            "pod_status": "str",
+            "relevant_logs": "str"
+          }
+        ]
+      }
+    },
+    {
+      "prompt_id": "UP002",
+      "prompt_type": "user",
+      "prompt_template": "Search the Confluence space '{space_key}' for a page with title containing '{error_type}' and get the page content.\n    Return the resolution provided in the page without any modifications.\n\n    IMPORTANT: Return ONLY the JSON object below. Do NOT include any markdown, code blocks, or explanatory text. Start your response with { and end with }.\n\n    {\n        \"search_query\": \"{error_type}\",\n        \"space_key\": \"{space_key}\",\n        \"page_found\": false,\n        \"page_title\": \"\",\n        \"page_url\": \"\",\n        \"resolution\": \"\",\n        \"resolution_sections\": []\n    }",
+      "expected_output_format": "json",
+      "output_schema": {
+        "search_query": "str",
+        "space_key": "str",
+        "page_found": "bool",
+        "page_title": "str",
+        "page_url": "str",
+        "resolution": "str",
+        "resolution_sections": "list"
+      }
+    },
+    {
+      "prompt_id": "UP003",
+      "prompt_type": "user",
+      "prompt_template": "Error: {error_type} in pod {pod_name} (namespace: {namespace})\n    Description: {error_description}\n\n    Generate a resolution with:\n    1. Root cause\n    2. Fix steps  \n    3. Verification\n\n    Return ONLY this JSON format (no markdown, no code blocks, no other text):\n    {\n        \"resolution_title\": \"Fix for {error_type}\",\n        \"root_cause\": \"brief root cause\",\n        \"fix_steps\": [\"step1\", \"step2\", \"step3\"],\n        \"verification\": \"how to verify fix\"\n    }",
+      "expected_output_format": "json",
+      "output_schema": {
+        "resolution_title": "str",
+        "root_cause": "str",
+        "fix_steps": "list[str]",
+        "verification": "str"
+      }
+    },
+    {
+      "prompt_id": "UP004",
+      "prompt_type": "user",
+      "prompt_template": "Create a Confluence page with these details:\n    - Space key: {space_key}\n    - Title: {resolution_title}\n    - Body content: {page_content}\n\n    IMPORTANT: Return ONLY the JSON object below. Do NOT include any markdown, code blocks, or explanatory text. Start your response with { and end with }.\n\n    {\n        \"page_created\": true,\n        \"page_title\": \"{resolution_title}\",\n        \"page_url\": \"url from tool result\"\n    }",
+      "expected_output_format": "json",
+      "output_schema": {
+        "page_created": "bool",
+        "page_title": "str",
+        "page_url": "str"
+      }
+    },
+    {
+      "prompt_id": "UP005",
+      "prompt_type": "user",
+      "prompt_template": "Create a Jira issue with these details:\n    - Project key: {project_key}\n    - Issue type: {issue_type}\n    - Summary: {incident_title}\n    - Description: {incident_description}\n\n    IMPORTANT: Return ONLY the JSON object below. Do NOT include any markdown, code blocks, or explanatory text. Start your response with { and end with }.\n\n    {\n        \"ticket_created\": true,\n        \"ticket_key\": \"issue key from tool result\"\n    }",
+      "expected_output_format": "json",
+      "output_schema": {
+        "ticket_created": "bool",
+        "ticket_key": "str"
+      }
+    }
+  ]
+}

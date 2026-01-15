@@ -1,0 +1,449 @@
+{
+  "workflow_metadata": {
+    "workflow_name": "Intelligent Operations Agent Phase-1",
+    "workflow_version": "1.0",
+    "description": "LangGraph-based workflow for automated error analysis, resolution discovery, and incident creation",
+    "state_schema": {
+      "messages": "Annotated[list, add_messages]",
+      "namespace": "str",
+      "errors_found": "bool",
+      "errors": "list",
+      "resolution_found": "bool",
+      "resolution_data": "dict",
+      "ai_resolution": "dict",
+      "confluence_page_url": "str",
+      "jira_ticket_key": "str",
+      "workflow_status": "str",
+      "error_message": "str"
+    }
+  },
+  "nodes": [
+    {
+      "node_name": "identify_errors",
+      "node_display_name": "Node 1: OpenShift Error Identification",
+      "node_status": "active",
+      "is_start_node": true,
+      "is_end_node": false,
+      "system_prompt_id": "SP001",
+      "user_prompt_id": "UP001",
+      "tool_group": "mcp::openshift",
+      "max_infer_iters": 50,
+      "input_parameters": [
+        {
+          "name": "namespace",
+          "type": "str",
+          "source": "state.namespace",
+          "default": "config['namespace']",
+          "required": true,
+          "description": "OpenShift namespace to analyze"
+        },
+        {
+          "name": "messages",
+          "type": "list",
+          "source": "state.messages",
+          "required": false,
+          "description": "Message history"
+        }
+      ],
+      "output_parameters": [
+        {
+          "name": "errors_found",
+          "type": "bool",
+          "description": "Whether errors were found in the namespace"
+        },
+        {
+          "name": "errors",
+          "type": "list",
+          "description": "List of error objects with pod_name, error_type, error_description, etc."
+        },
+        {
+          "name": "workflow_status",
+          "type": "str",
+          "description": "Status: 'errors_identified' or 'no_errors' or 'error'"
+        },
+        {
+          "name": "error_message",
+          "type": "str",
+          "description": "Error message if parsing failed"
+        },
+        {
+          "name": "messages",
+          "type": "list",
+          "description": "Updated message history"
+        }
+      ],
+      "condition_field": "errors_found",
+      "condition_true_node": "search_confluence",
+      "condition_false_node": "__end__",
+      "condition_description": "If errors_found is true, go to search_confluence; otherwise end workflow"
+    },
+    {
+      "node_name": "search_confluence",
+      "node_display_name": "Node 2: Search Confluence for Resolution",
+      "node_status": "active",
+      "is_start_node": false,
+      "is_end_node": false,
+      "system_prompt_id": "SP002",
+      "user_prompt_id": "UP002",
+      "tool_group": "mcp::atlassian",
+      "max_infer_iters": 50,
+      "input_parameters": [
+        {
+          "name": "errors",
+          "type": "list",
+          "source": "state.errors",
+          "required": true,
+          "description": "List of errors from previous node"
+        },
+        {
+          "name": "confluence_space_key",
+          "type": "str",
+          "source": "config['confluence_space_key']",
+          "required": true,
+          "description": "Confluence space key to search"
+        },
+        {
+          "name": "error_type",
+          "type": "str",
+          "source": "state.errors[0].error_type",
+          "required": true,
+          "description": "Error type from first error for search query"
+        }
+      ],
+      "output_parameters": [
+        {
+          "name": "resolution_found",
+          "type": "bool",
+          "description": "Whether a resolution page was found"
+        },
+        {
+          "name": "resolution_data",
+          "type": "dict",
+          "description": "Resolution data with page_found, page_title, page_url, resolution, resolution_sections"
+        },
+        {
+          "name": "confluence_page_url",
+          "type": "str",
+          "description": "URL of the found Confluence page"
+        },
+        {
+          "name": "workflow_status",
+          "type": "str",
+          "description": "Status: 'resolution_found' or 'resolution_not_found' or 'error'"
+        },
+        {
+          "name": "error_message",
+          "type": "str",
+          "description": "Error message if parsing failed"
+        },
+        {
+          "name": "messages",
+          "type": "list",
+          "description": "Updated message history"
+        }
+      ],
+      "condition_field": "resolution_found",
+      "condition_true_node": "create_jira_ticket",
+      "condition_false_node": "generate_ai_resolution",
+      "condition_description": "If resolution_found is true, go to create_jira_ticket; otherwise go to generate_ai_resolution"
+    },
+    {
+      "node_name": "generate_ai_resolution",
+      "node_display_name": "Node 3: Generate AI Resolution",
+      "node_status": "active",
+      "is_start_node": false,
+      "is_end_node": false,
+      "system_prompt_id": "SP003",
+      "user_prompt_id": "UP003",
+      "tool_group": "mcp::openshift",
+      "max_infer_iters": 15,
+      "input_parameters": [
+        {
+          "name": "errors",
+          "type": "list",
+          "source": "state.errors",
+          "required": true,
+          "description": "List of errors from identify_errors node"
+        },
+        {
+          "name": "namespace",
+          "type": "str",
+          "source": "state.namespace",
+          "default": "config['namespace']",
+          "required": true,
+          "description": "Namespace for context"
+        },
+        {
+          "name": "error_type",
+          "type": "str",
+          "source": "state.errors[0].error_type",
+          "required": true,
+          "description": "Error type from first error"
+        },
+        {
+          "name": "error_description",
+          "type": "str",
+          "source": "state.errors[0].error_description",
+          "required": true,
+          "description": "Error description from first error"
+        },
+        {
+          "name": "pod_name",
+          "type": "str",
+          "source": "state.errors[0].pod_name",
+          "required": true,
+          "description": "Pod name from first error"
+        }
+      ],
+      "output_parameters": [
+        {
+          "name": "ai_resolution",
+          "type": "dict",
+          "description": "AI-generated resolution with resolution_title, root_cause, fix_steps, verification"
+        },
+        {
+          "name": "workflow_status",
+          "type": "str",
+          "description": "Status: 'ai_resolution_generated' or 'error'"
+        },
+        {
+          "name": "error_message",
+          "type": "str",
+          "description": "Error message if generation failed"
+        },
+        {
+          "name": "messages",
+          "type": "list",
+          "description": "Updated message history"
+        }
+      ],
+      "edge_node": "save_to_confluence"
+    },
+    {
+      "node_name": "save_to_confluence",
+      "node_display_name": "Node 4: Save AI Resolution to Confluence",
+      "node_status": "active",
+      "is_start_node": false,
+      "is_end_node": false,
+      "system_prompt_id": "SP004",
+      "user_prompt_id": "UP004",
+      "tool_group": "mcp::atlassian",
+      "max_infer_iters": 30,
+      "input_parameters": [
+        {
+          "name": "ai_resolution",
+          "type": "dict",
+          "source": "state.ai_resolution",
+          "required": true,
+          "description": "AI-generated resolution from previous node"
+        },
+        {
+          "name": "confluence_space_key",
+          "type": "str",
+          "source": "config['confluence_space_key']",
+          "required": true,
+          "description": "Confluence space key to create page"
+        },
+        {
+          "name": "resolution_title",
+          "type": "str",
+          "source": "state.ai_resolution.resolution_title",
+          "required": true,
+          "description": "Title for the Confluence page"
+        },
+        {
+          "name": "fix_steps",
+          "type": "list",
+          "source": "state.ai_resolution.fix_steps",
+          "required": true,
+          "description": "List of fix steps"
+        },
+        {
+          "name": "root_cause",
+          "type": "str",
+          "source": "state.ai_resolution.root_cause",
+          "required": true,
+          "description": "Root cause description"
+        },
+        {
+          "name": "verification",
+          "type": "str",
+          "source": "state.ai_resolution.verification",
+          "required": true,
+          "description": "Verification steps"
+        },
+        {
+          "name": "page_content",
+          "type": "str",
+          "source": "",
+          "transform": "f\"\"\"h1. {context.get('resolution_title', 'AI Resolution')}\n\n    h2. Root Cause\n    {context.get('root_cause', 'Unknown')}\n\n    h2. Resolution Steps\n    {chr(10).join(['# ' + str(step) for step in context.get('fix_steps', [])])}\n\n    h2. Verification\n    {context.get('verification', 'Unknown')}\n\n    *Generated by AI on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\"\"\"",
+          "required": true,
+          "description": "Formatted Confluence page content computed from resolution_title, root_cause, fix_steps, and verification"
+        }
+      ],
+      "output_parameters": [
+        {
+          "name": "confluence_page_url",
+          "type": "str",
+          "description": "URL of the created Confluence page"
+        },
+        {
+          "name": "resolution_data",
+          "type": "dict",
+          "description": "Updated resolution data with created page info"
+        },
+        {
+          "name": "resolution_found",
+          "type": "bool",
+          "description": "Set to true after page creation"
+        },
+        {
+          "name": "workflow_status",
+          "type": "str",
+          "description": "Status: 'confluence_page_created' or 'error'"
+        },
+        {
+          "name": "error_message",
+          "type": "str",
+          "description": "Error message if creation failed"
+        },
+        {
+          "name": "messages",
+          "type": "list",
+          "description": "Updated message history"
+        }
+      ],
+      "edge_node": "create_jira_ticket"
+    },
+    {
+      "node_name": "create_jira_ticket",
+      "node_display_name": "Node 5: Create Jira Ticket",
+      "node_status": "active",
+      "is_start_node": false,
+      "is_end_node": true,
+      "system_prompt_id": "SP005",
+      "user_prompt_id": "UP005",
+      "tool_group": "mcp::atlassian",
+      "max_infer_iters": 30,
+      "input_parameters": [
+        {
+          "name": "errors",
+          "type": "list",
+          "source": "state.errors",
+          "required": true,
+          "description": "List of errors from identify_errors node"
+        },
+        {
+          "name": "resolution_data",
+          "type": "dict",
+          "source": "state.resolution_data",
+          "required": true,
+          "description": "Resolution data from search_confluence or save_to_confluence"
+        },
+        {
+          "name": "namespace",
+          "type": "str",
+          "source": "state.namespace",
+          "default": "config['namespace']",
+          "required": true,
+          "description": "Namespace for ticket context"
+        },
+        {
+          "name": "jira_project_key",
+          "type": "str",
+          "source": "config['jira_project_key']",
+          "required": true,
+          "description": "Jira project key"
+        },
+        {
+          "name": "jira_issue_type",
+          "type": "str",
+          "source": "config['jira_issue_type']",
+          "required": true,
+          "description": "Jira issue type (e.g., Incident)"
+        },
+        {
+          "name": "error_type",
+          "type": "str",
+          "source": "state.errors[0].error_type",
+          "required": true,
+          "description": "Error type for ticket title"
+        },
+        {
+          "name": "pod_name",
+          "type": "str",
+          "source": "state.errors[0].pod_name",
+          "required": true,
+          "description": "Pod name for ticket description"
+        },
+        {
+          "name": "error_description",
+          "type": "str",
+          "source": "state.errors[0].error_description",
+          "required": true,
+          "description": "Error description for ticket"
+        },
+        {
+          "name": "resolution",
+          "type": "str",
+          "source": "state.resolution_data.resolution",
+          "required": true,
+          "description": "Resolution text for ticket"
+        },
+        {
+          "name": "page_title",
+          "type": "str",
+          "source": "state.resolution_data.page_title",
+          "required": true,
+          "description": "Page title for ticket reference"
+        },
+        {
+          "name": "is_ai_generated",
+          "type": "bool",
+          "source": "state.resolution_data.ai_generated",
+          "required": false,
+          "description": "Whether resolution was AI-generated"
+        },
+        {
+          "name": "incident_title",
+          "type": "str",
+          "source": "",
+          "transform": "f\"{context.get('error_type', 'Error')} - {state.get('namespace', '')}\"",
+          "required": true,
+          "description": "Formatted incident title computed from error_type and namespace"
+        },
+        {
+          "name": "incident_description",
+          "type": "str",
+          "source": "",
+          "transform": "f\"\"\"Pod: {context.get('pod_name', 'Unknown')}\n    Namespace: {state.get('namespace', 'Unknown')}\n    Error: {context.get('error_description', 'No description')}\n\n    Resolution Source: {context.get('page_title', 'Unknown Page')}\n    {context.get('resolution', 'No resolution found')}\n\n    {'⚠️ AI-Generated Resolution - Review before applying' if context.get('is_ai_generated', False) else ''}\"\"\"",
+          "required": true,
+          "description": "Formatted incident description computed from pod_name, namespace, error_description, resolution, page_title, and is_ai_generated"
+        }
+      ],
+      "output_parameters": [
+        {
+          "name": "jira_ticket_key",
+          "type": "str",
+          "description": "Key of the created Jira ticket"
+        },
+        {
+          "name": "workflow_status",
+          "type": "str",
+          "description": "Status: 'complete' or 'error'"
+        },
+        {
+          "name": "error_message",
+          "type": "str",
+          "description": "Error message if ticket creation failed"
+        },
+        {
+          "name": "messages",
+          "type": "list",
+          "description": "Updated message history"
+        }
+      ],
+      "edge_node": "__end__"
+    }
+  ]
+}
