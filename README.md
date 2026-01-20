@@ -2,6 +2,17 @@
 
 This project implements a **multi-agent factory**: you can build *any* use case by composing a workflow from configurable “agents” (nodes), each with its own tools and prompts, and routing logic that orchestrates them.
 
+## Architecture Diagram
+
+![Multi-Agent-Factory Architecture](images/architecture.png)
+
+This diagram shows the **configuration-driven orchestration** pattern:
+
+- **Configuration inputs** (`workflow_nodes_rules.json`, `workflow_prompts.json`, `config.env`) define the workflow graph, routing, and prompt templates.
+- **Orchestrator / runtime** (`agent_workflow.py`) builds a LangGraph `StateGraph` of dynamic agent nodes and routes between them using direct or conditional edges.
+- **LLM runtime / agent engines** (`agent_helper_openai.py`, `agent_helper_responseapi.py`) execute each node using the selected engine and tool access.
+- **Tools & MCP adapters** connect agents to external systems (e.g., OpenShift, Atlassian) and produce the workflow’s final outputs/actions.
+
 ## LLM runtime / agent engines (llama-stack 0.3.0)
 
 This factory is designed for **llama-stack 0.3.0** and can be configured to use two agent engines:
